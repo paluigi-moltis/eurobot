@@ -1,0 +1,29 @@
+# llm-pycascade configuration
+# Mount this file at /app/config/llm-pycascade.toml inside the container.
+# API keys are injected via environment variables (.env).
+
+[providers.openai]
+type = "openai"
+api_key = "${OPENAI_API_KEY}"
+
+[providers.anthropic]
+type = "anthropic"
+api_key = "${ANTHROPIC_API_KEY}"
+
+[providers.gemini]
+type = "gemini"
+api_key = "${GEMINI_API_KEY}"
+
+# Cascade: ordered provider/model entries for failover
+# Edit models to your preferred providers. First entry is tried first.
+[[cascades.default]]
+provider = "openai"
+model = "gpt-4o"
+
+[[cascades.default]]
+provider = "anthropic"
+model = "claude-sonnet-4-20250514"
+
+[[cascades.default]]
+provider = "gemini"
+model = "gemini-2.5-flash"

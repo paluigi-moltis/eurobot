@@ -1,0 +1,11 @@
+services:
+  eurobot:
+    build: .
+    container_name: eurobot
+    env_file: .env
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./config:/app/config:ro      # llm-pycascade.toml (mounted, read-only)
+      - ./data:/app/data             # SQLite DB + audit logs (persistent)
+    restart: unless-stopped
