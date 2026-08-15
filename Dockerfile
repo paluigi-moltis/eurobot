@@ -2,6 +2,10 @@ FROM python:3.12-slim
 
 LABEL maintainer="Luigi Palumbo"
 LABEL description="Autonomous euro-area economic reporting pipeline"
+LABEL org.opencontainers.image.title="eurobot"
+LABEL org.opencontainers.image.description="Autonomous euro-area economic reporting pipeline: fetches ECB/Eurostat, market and news data, drafts an LLM report and publishes it to a zzboard API"
+LABEL org.opencontainers.image.source="https://github.com/paluigi/eurobot"
+LABEL org.opencontainers.image.licenses="MIT"
 
 # Install cron and curl (for healthchecks)
 RUN apt-get update && apt-get install -y --no-install-recommends \

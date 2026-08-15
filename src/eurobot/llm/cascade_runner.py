@@ -7,6 +7,7 @@ text response.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 
@@ -16,12 +17,14 @@ logger = logging.getLogger(__name__)
 
 # Attempt import of llm_pycascade — it's a hard dependency.
 try:
-    from llm_pycascade.config import AppConfig
+    from llm_pycascade import AppConfig, init_db, load_config, run_cascade
     from llm_pycascade.models import Conversation, Message, MessageRole
-    from llm_pycascade.cascade import run_cascade
 except ImportError as exc:  # pragma: no cover
     logger.error("llm-pycascade not installed: %s", exc)
     raise
+
+# SQLite DB where llm-pycascade logs attempts and tracks provider cooldowns.
+CASCADE_DB_PATH = config.DATA_DIR / "cascade.db"
 
 # Cache the loaded AppConfig so we don't re-read TOML on every call.
 _app_config: AppConfig | None = None
@@ -38,7 +41,7 @@ def _load_config() -> AppConfig:
                 "Mount it at /app/config/llm-pycascade.toml"
             )
         logger.info("Loading cascade config from %s", config_path)
-        _app_config = AppConfig.from_toml(str(config_path))
+        _app_config = load_config(config_path)
     return _app_config
 
 
@@ -64,19 +67,21 @@ def query_llm(
 
     messages = []
     if system_prompt:
-        messages.append(Message(role=MessageRole.SYSTEM, content=[system_prompt]))
-    messages.append(Message(role=MessageRole.USER, content=[user_prompt]))
+        messages.append(Message(role=MessageRole.SYSTEM, content=system_prompt))
+    messages.append(Message(role=MessageRole.USER, content=user_prompt))
 
     conversation = Conversation(messages=messages)
 
     logger.info("Cascade: running '%s' (system=%s, user=%d chars)",
                 cascade_name, bool(system_prompt), len(user_prompt))
 
-    response = run_cascade(conversation, cascade_name, cfg)
+    response = asyncio.run(
+        _run_cascade(cascade_name, conversation, cfg)
+    )
 
     # Extract text from response content blocks
     text_parts = []
-    for block in response.content_blocks:
+    for block in response.content:
         if hasattr(block, "text"):
             text_parts.append(block.text)
         elif hasattr(block, "content"):
@@ -84,3 +89,13 @@ def query_llm(
     result = "\n".join(text_parts)
     logger.info("Cascade: response received (%d chars)", len(result))
     return result
+
+
+async def _run_cascade(
+    cascade_name: str, conversation: Conversation, cfg: AppConfig):
+    """Run one cascade query inside an event loop with its own DB connection."""
+    conn = await init_db(str(CASCADE_DB_PATH))
+    try:
+        return await run_cascade(cascade_name, conversation, cfg, conn)
+    finally:
+        await conn.close()

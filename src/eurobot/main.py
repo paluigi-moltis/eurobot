@@ -136,7 +136,7 @@ def run() -> int:
         data_summaries, news_summaries
     )
     raw_response = query_llm(usr_prompt, system_prompt=sys_prompt)
-    selected_ids = _parse_json_safe(raw_response)
+    selected_ids = _parse_json_safe(raw_response, prefer=list)
 
     if not selected_ids:
         logger.error("Stage 1 returned no valid selections — aborting")
@@ -171,7 +171,7 @@ def run() -> int:
     logger.info("STEP 5: LLM Stage 2 — Drafting")
     sys_prompt, usr_prompt = prompts.build_drafting_prompt(selected_context)
     raw_response = query_llm(usr_prompt, system_prompt=sys_prompt)
-    draft = _parse_json_safe(raw_response)
+    draft = _parse_json_safe(raw_response, prefer=dict)
 
     if not draft or "content_markdown" not in draft:
         logger.error("Stage 2 returned invalid draft — aborting")
@@ -189,7 +189,7 @@ def run() -> int:
         json.dumps(draft, indent=2), source_summaries
     )
     raw_response = query_llm(usr_prompt, system_prompt=sys_prompt)
-    review = _parse_json_safe(raw_response)
+    review = _parse_json_safe(raw_response, prefer=dict)
 
     if review and review.get("approved") is False:
         if review.get("corrected_markdown"):
@@ -247,26 +247,35 @@ def run() -> int:
         return 1
 
 
-def _parse_json_safe(text: str) -> list | dict | None:
-    """Extract and parse JSON from an LLM response that may contain markdown fences."""
+def _parse_json_safe(text: str, prefer: type | None = None) -> list | dict | None:
+    """Extract and parse JSON from an LLM response.
+
+    Tolerates reasoning-model ``<think>`` blocks (even with the JSON inside
+    them), markdown code fences, and surrounding prose: collects every
+    complete JSON value found and returns the last one — models place the
+    final answer at the end. If ``prefer`` (list or dict) is given, only
+    candidates of that type are considered.
+    """
     import re
-    # Strip markdown code fences if present
-    text = text.strip()
-    if text.startswith("```"):
-        text = re.sub(r"^```(?:json)?\n?", "", text)
-        text = re.sub(r"\n?```$", "", text)
+
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        # Try to find a JSON array or object in the text
-        match = re.search(r"(\[.*\]|\{.*\})", text, re.DOTALL)
-        if match:
-            try:
-                return json.loads(match.group(1))
-            except json.JSONDecodeError:
-                pass
-        logger.error("Could not parse JSON from LLM response: %s", text[:200])
-        return None
+        pass
+    decoder = json.JSONDecoder()
+    candidates = []
+    for match in re.finditer(r"[\[{]", text):
+        try:
+            obj, _ = decoder.raw_decode(text, match.start())
+            candidates.append(obj)
+        except json.JSONDecodeError:
+            continue
+    if prefer is not None:
+        candidates = [c for c in candidates if isinstance(c, prefer)]
+    if candidates:
+        return candidates[-1]
+    logger.error("Could not parse JSON from LLM response: %s", text[:200])
+    return None
 
 
 if __name__ == "__main__":

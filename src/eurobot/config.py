@@ -28,7 +28,7 @@ POSTS_DIR.mkdir(parents=True, exist_ok=True)
 # ---------------------------------------------------------------------------
 ZZBOARD_API_TOKEN: str = os.getenv("ZZBOARD_API_TOKEN", "")
 ZZBOARD_API_ENDPOINT: str = os.getenv(
-    "ZZBOARD_API_ENDPOINT", "https://roll.by.gg8.eu/api/posts"
+    "ZZBOARD_API_ENDPOINT", "https://roll.by.gg8.eu/api/new"
 )
 
 # llm-pycascade TOML config path

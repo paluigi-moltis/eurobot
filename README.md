@@ -36,26 +36,50 @@ endpoint.
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## Quick Start
+## Quick Start (Docker)
+
+The image is published on Docker Hub as [`paluugi/eurobot`](https://hub.docker.com/r/paluigi/eurobot).
 
 ```bash
 # 1. Clone and configure
-git clone https://github.com/paluigi-moltis/eurobot.git
+git clone https://github.com/paluigi/eurobot.git
 cd eurobot
 
 # 2. Set up secrets
 cp .env.example .env
-# Edit .env with your API keys
+# Edit .env with your API keys (GROQ_API_KEY / TOGETHER_API_KEY,
+# ZZBOARD_API_TOKEN, ZZBOARD_API_ENDPOINT)
 
 cp config/llm-pycascade.toml.example config/llm-pycascade.toml
-# Edit TOML to add your provider models
+# Edit the TOML to pick your cascade providers/models
 
-# 3. Build and run
-docker compose build
+# 3. Run (pulls the image from Docker Hub)
+mkdir -p data/posts
 docker compose up -d
 
 # 4. Check logs
 docker compose logs -f eurobot
+
+# 5. Trigger a run immediately (without waiting for the cron schedule)
+docker compose exec eurobot python -m eurobot.main
+```
+
+### Container data layout
+
+| Path | Mount | Contents |
+|------|-------|----------|
+| `/app/config` | `./config` (bind, read-only) | `llm-pycascade.toml` — required |
+| `/app/data` | `eurobot_data` (named Docker volume) | `eurobot.db` (dedup SQLite), `cascade.db` (LLM attempt log), `eurobot.log` |
+| `/app/data/posts` | `./data/posts` (bind) | Audit JSON copy of every published payload |
+
+The SQLite databases live in a Docker-managed volume (not a bind mount), so
+they survive container recreation. Inspect them with e.g.
+`docker compose exec eurobot python -c "import sqlite3; print(sqlite3.connect('/app/data/eurobot.db').execute('select count(*) from news_seen').fetchone())"`.
+
+Build the image locally instead of pulling:
+
+```bash
+docker build -t paluugi/eurobot:latest .
 ```
 
 ## Data Sources
@@ -90,10 +114,12 @@ international (Reuters, The Economist, Guardian), think tanks (Bruegel, VoxEU).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ZZBOARD_API_TOKEN` | — | Bearer token for publishing |
-| `ZZBOARD_API_ENDPOINT` | `https://roll.by.gg8.eu/api/posts` | Target endpoint |
+| `GROQ_API_KEY` | — | Groq API key (used by the default cascade) |
+| `TOGETHER_API_KEY` | — | Together AI API key (used by the default cascade) |
+| `ZZBOARD_API_TOKEN` | — | API key for publishing (sent as `X-API-Key`) |
+| `ZZBOARD_API_ENDPOINT` | `https://roll.by.gg8.eu/api/new` | Target endpoint |
 | `EUROBOT_CONFIG_DIR` | `/app/config` | llm-pycascade TOML location |
-| `EUROBOT_DATA_DIR` | `/app/data` | SQLite DB + audit logs |
+| `EUROBOT_DATA_DIR` | `/app/data` | SQLite DBs + audit logs |
 | `NEWS_COOLDOWN_HOURS` | 48 | News dedup window |
 | `THEME_COOLDOWN_HOURS` | 24 | Same-theme dedup window |
 | `MAX_NEWS_ITEMS` | 15 | Max news items to LLM |

@@ -1,0 +1,11 @@
+# Never bake secrets or local state into the image
+.env
+data/
+.venv/
+.git/
+.gitignore
+__pycache__/
+*.pyc
+.pytest_cache/
+# Live cascade config (users mount their own; the example ships in the image)
+config/llm-pycascade.toml
