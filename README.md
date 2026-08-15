@@ -76,10 +76,11 @@ The SQLite databases live in a Docker-managed volume (not a bind mount), so
 they survive container recreation. Inspect them with e.g.
 `docker compose exec eurobot python -c "import sqlite3; print(sqlite3.connect('/app/data/eurobot.db').execute('select count(*) from news_seen').fetchone())"`.
 
-Build the image locally instead of pulling:
+Build the image locally instead of pulling (reproducibly — see
+[Reproducible builds](#reproducible-builds)):
 
 ```bash
-docker build -t paluugi/eurobot:latest .
+scripts/build-image.sh
 ```
 
 ## Data Sources
@@ -159,7 +160,35 @@ pytest
 
 ## Schedule
 
-Cron runs 3× daily at 08:00, 13:00, 18:00 UTC inside the container.
+The container runs [supercronic](https://github.com/aptible/supercronic)
+(container-native cron) with the schedule defined in [`crontab`](crontab):
+3× daily at 08:00, 13:00, 18:00 UTC. Job output goes to container stdout —
+watch it with `docker compose logs -f eurobot`.
+
+## Reproducible builds
+
+Two builds of the same commit produce the **same image digest**. Enforced by:
+
+- `uv.lock` — every Python dependency pinned (builds install from the lock,
+  never re-resolve)
+- Base image pinned by digest (`FROM python:3.12-slim@sha256:…`)
+- supercronic pinned by release URL + sha256; uv pinned by tag + digest
+- All files enter via `RUN` + bind mounts (no `COPY` layers, which stamp
+  parent-directory mtimes with the build clock) and every layer's mtimes are
+  normalized to `SOURCE_DATE_EPOCH`
+- apt logs, apt state, `ldconfig` cache and the random `/etc/machine-id`
+  are stripped; `uv_cache.json` (embeds build timestamps) is dropped
+
+Always build through the wrapper (it passes the required
+`SOURCE_DATE_EPOCH` build arg):
+
+```bash
+scripts/build-image.sh              # tag from pyproject version
+scripts/build-image.sh 0.1.3 --push # explicit tag, push to Docker Hub
+```
+
+Refreshing the pins (base image, supercronic, uv) is a deliberate manual
+step — see the comments in the `Dockerfile`.
 
 ## Failure handling & retries
 
@@ -190,7 +219,8 @@ Images on Docker Hub: `paluugi/eurobot:<tag>` — see
 
 | Tag | Notes |
 |-----|-------|
-| `0.1.2` (latest) | Tenacity retries resuming from the last valid pipeline step; unfixable self-review rejections redraft instead of aborting |
+| `0.1.3` (latest) | Reproducible image builds (uv.lock, pinned bases, normalized layers); supercronic replaces Debian cron (job output on stdout) |
+| `0.1.2` | Tenacity retries resuming from the last valid pipeline step; unfixable self-review rejections redraft instead of aborting |
 | `0.1.1` | Live E2E fixes: `X-API-Key` auth + `/api/new` endpoint, JSON payload sanitization, robust LLM-response parsing; dedup marked only after successful publish; docs match actual data sources |
 | `0.1.0` | Initial implementation |
 
