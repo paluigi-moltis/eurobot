@@ -183,6 +183,17 @@ The assembled payload of every attempt is kept as an audit JSON in
 `/app/data/posts` for manual replay if needed. Fetch/stats stages are not
 retried as a block (they are already resilient per series).
 
+## Releases
+
+Images on Docker Hub: `paluugi/eurobot:<tag>` — see
+[hub.docker.com/r/paluigi/eurobot/tags](https://hub.docker.com/r/paluigi/eurobot/tags).
+
+| Tag | Notes |
+|-----|-------|
+| `0.1.2` (latest) | Tenacity retries resuming from the last valid pipeline step; unfixable self-review rejections redraft instead of aborting |
+| `0.1.1` | Live E2E fixes: `X-API-Key` auth + `/api/new` endpoint, JSON payload sanitization, robust LLM-response parsing; dedup marked only after successful publish; docs match actual data sources |
+| `0.1.0` | Initial implementation |
+
 ## License
 
 MIT

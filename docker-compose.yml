@@ -13,7 +13,7 @@
 
 services:
   eurobot:
-    image: paluigi/eurobot:latest   # pinned alternative: paluigi/eurobot:0.1.0
+    image: paluigi/eurobot:latest   # pinned alternative: paluigi/eurobot:0.1.2
     container_name: eurobot
     env_file: .env
     environment:
