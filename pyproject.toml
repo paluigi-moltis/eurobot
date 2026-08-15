@@ -1,6 +1,6 @@
 [project]
 name = "eurobot"
-version = "0.1.1"
+version = "0.1.2"
 description = "Autonomous euro-area economic reporting pipeline"
 requires-python = ">=3.11"
 dependencies = [
@@ -11,6 +11,7 @@ dependencies = [
     "llm-pycascade>=0.1.0",
     "requests>=2.32.0",
     "python-dotenv>=1.0.1",
+    "tenacity>=8.2.0",
 ]
 
 [project.optional-dependencies]

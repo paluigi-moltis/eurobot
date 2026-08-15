@@ -123,6 +123,7 @@ the LLM.
 | `NEWS_COOLDOWN_HOURS` | 48 | News dedup window |
 | `THEME_COOLDOWN_HOURS` | 24 | Same-theme dedup window |
 | `MAX_NEWS_ITEMS` | 15 | Max news items to LLM |
+| `PIPELINE_MAX_ATTEMPTS` | 4 | Initial run + retries (tenacity, exponential backoff) before giving up until the next cron slot |
 | `MAX_HISTORY_DAYS` | 90 | Chart lookback |
 
 ## LLM Cascade
@@ -162,22 +163,25 @@ Cron runs 3× daily at 08:00, 13:00, 18:00 UTC inside the container.
 
 ## Failure handling & retries
 
-There is **no automatic retry within a single run** — a failed run exits
-non-zero and logs the error (cron appends output to `/var/log/cron.log`,
-visible via `docker compose logs`). Recovery happens at the **next scheduled
-run** (up to 5 hours later), and it is effectively a retry of the same
-content, because:
+The LLM stages and publish are wrapped in a [tenacity](https://tenacity.readthedocs.io/)
+retry loop (`PIPELINE_MAX_ATTEMPTS`, default 4 = initial run + 3 retries,
+exponential backoff ~10–20s between attempts). Retries **resume from the
+last valid step**: stage results are checkpointed, so a failed attempt
+re-runs only the broken stage and those after it —
 
-- Items are marked as *seen* in the dedup database **only after a successful
-  publish**. If a run aborts in any LLM stage or the publish POST fails, the
-  selected news/macro items stay fresh and are re-presented next run.
-- The assembled payload of a failed publish is kept as an audit JSON in
-  `/app/data/posts` for manual replay if needed.
+- a crashed/unparseable LLM call re-runs just that stage;
+- an unfixable self-review rejection **redrafts** (the selection is kept);
+- a failed publish POST is retried with backoff.
 
-Typical failure modes: a reasoning model emits unparseable/rejected JSON
-(stage aborts; a fresh draft is generated next run), or the self-review
-rejects a draft as numerically incorrect with no possible correction (by
-design — better no post than a wrong one).
+If all attempts fail, the run exits non-zero and gives up until the next
+scheduled cron run (08:00/13:00/18:00 UTC). That next run is effectively a
+retry of the same content, because items are marked as *seen* in the dedup
+database **only after a successful publish** — a failed run leaves the
+selected news/macro items fresh and re-presented.
+
+The assembled payload of every attempt is kept as an audit JSON in
+`/app/data/posts` for manual replay if needed. Fetch/stats stages are not
+retried as a block (they are already resilient per series).
 
 ## License
 
