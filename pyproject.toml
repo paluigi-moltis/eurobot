@@ -1,6 +1,6 @@
 [project]
 name = "eurobot"
-version = "0.1.0"
+version = "0.1.1"
 description = "Autonomous euro-area economic reporting pipeline"
 requires-python = ">=3.11"
 dependencies = [

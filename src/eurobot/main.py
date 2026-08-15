@@ -1,7 +1,7 @@
 """Main orchestrator — coordinates the full end-to-end pipeline.
 
 Flow:
-  1. Fetch macro (SDMX), market (Stooq), and news (RSS) data.
+  1. Fetch macro (SDMX), market (Yahoo Finance), and news (RSS) data.
   2. Filter for freshness (dedup) and compute statistics (Δ prev + YoY).
   3. Generate Plotly charts and summary tables.
   4. Stage 1 LLM: Select items forming a cohesive theme.
@@ -229,15 +229,15 @@ def run() -> int:
     payload_path = save_payload(payload)
     logger.info("Payload saved to %s", payload_path)
 
-    # Mark items as seen/presented
-    dedup.mark_news_seen(selected_news)
-    dedup.mark_macro_presented(
-        [item for item in fresh_data if item["tag"] in selected_tags]
-    )
-
     # Publish
     success = publish_payload(payload)
     if success:
+        # Mark items as seen/presented only after a successful publish, so a
+        # failed run retries the same content at the next scheduled run.
+        dedup.mark_news_seen(selected_news)
+        dedup.mark_macro_presented(
+            [item for item in fresh_data if item["tag"] in selected_tags]
+        )
         logger.info("=" * 60)
         logger.info("eurobot pipeline completed successfully")
         logger.info("=" * 60)

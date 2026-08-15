@@ -1,9 +1,9 @@
 # eurobot
 
 Autonomous euro-area economic reporting pipeline. Collects macro data (SDMX),
-market data (Stooq), and news (RSS) three times daily, uses a two-stage LLM
-workflow to select and narrate a cohesive theme, and publishes to a zzboard
-endpoint.
+market data (Yahoo Finance), and news (RSS) three times daily, uses a
+three-stage LLM workflow to select and narrate a cohesive theme, and publishes
+to a zzboard endpoint.
 
 ## Architecture
 
@@ -11,7 +11,7 @@ endpoint.
 ┌─────────────────────────────────────────────────────────────┐
 │                    Docker Container                          │
 │  ┌─────────┐  ┌──────────┐  ┌──────────────────────────┐   │
-│  │  Cron   │─▶│  main.py │─▶│  fetchers (SDMX/Stooq/RSS)│   │
+│  │  Cron   │─▶│  main.py │─▶│ fetchers (SDMX/Yahoo/RSS) │   │
 │  │  3×/day │  │          │  └────────────┬─────────────┘   │
 │  └─────────┘  │          │               ▼                  │
 │               │          │  ┌──────────────────────────┐   │
@@ -31,7 +31,7 @@ endpoint.
 │                          │  │  payload → publish        │   │
 │                          │  └──────────────────────────┘   │
 │  ┌──────────────────┐                                       │
-│  │  SQLite (dedup)  │  data/ (mounted)                     │
+│  │  SQLite (dedup)  │  /app/data (Docker volume)           │
 │  └──────────────────┘                                       │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -84,31 +84,31 @@ docker build -t paluugi/eurobot:latest .
 
 ## Data Sources
 
-### Macro (SDMX via `sdmx1`)
-| Series | Source | Description |
-|--------|--------|-------------|
-| CISS | ECB | Composite Indicator of Systemic Stress |
-| EUR/USD | ECB | Daily spot exchange rate |
-| M3 | ECB | Broad money aggregate |
-| Bund 10Y | ECB | German sovereign yield |
-| BTP 10Y | ECB | Italian sovereign yield |
-| HICP | Eurostat | Harmonised consumer price index |
-| HICP Core | Eurostat | HICP excl. energy & food |
-| GDP | Eurostat | Volume, chain-linked, SA |
-| Unemployment | Eurostat | EA unemployment rate |
-| ESI | DG-ECFIN | Economic Sentiment Indicator |
+### Macro (SDMX: ECB Data Portal + Eurostat, via `sdmx1`)
+| Series | Source | Frequency | Description |
+|--------|--------|-----------|-------------|
+| CISS | ECB | D | Composite Indicator of Systemic Stress |
+| EUR/USD | ECB | D | Daily spot exchange reference rate |
+| M3 | ECB | M | Broad money aggregate (stock) |
+| DFR | ECB | D | ECB Deposit Facility Rate |
+| EA 10Y yield | ECB | M | Euro-area benchmark government yield |
+| DE 10Y yield | Eurostat | M | German 10Y yield (Maastricht convergence) |
+| IT 10Y yield | Eurostat | M | Italian 10Y yield (Maastricht convergence) |
+| BTP–Bund spread | (computed) | M | IT minus DE 10Y — sovereign stress |
 
-### Market (Stooq, free)
-| Instrument | Symbol | Description |
-|------------|--------|-------------|
-| FTSE MIB | ftsemib | Italian equity benchmark |
-| Brent | cbr.c | Crude oil benchmark |
-| EUR/USD | eurusd | Cross-check vs ECB |
-| BTP–Bund spread | (computed) | Sovereign stress |
+### Market (Yahoo Finance chart API, free, no key)
+| Instrument | Yahoo symbol | Description |
+|------------|--------------|-------------|
+| FTSE MIB | `FTSEMIB.MI` | Italian equity benchmark |
+| Brent | `BZ=F` | Crude oil futures |
+| EUR/USD | `EURUSD=X` | Cross-check vs ECB reference rate |
+| BTP–Bund spread | (computed) | From the SDMX sovereign yields above |
 
-### News (RSS)
-Official (ECB, Eurostat), Italian press (ANSA, RAI, Il Sole 24 Ore),
-international (Reuters, The Economist, Guardian), think tanks (Bruegel, VoxEU).
+### News (RSS, 7 feeds)
+Official (ECB Press), international press (The Economist, The Guardian,
+DW), Italian press (ANSA, Il Sole 24 Ore), think tanks (Bruegel). Items are
+pre-filtered by a euro-area economic relevance keyword list before reaching
+the LLM.
 
 ## Configuration
 
@@ -141,7 +141,7 @@ Three LLM stages:
 - **News**: same item filtered for 48h after posting (SQLite `news_seen`)
 - **Macro releases**: presented only on the day of a fresh release; filtered
   out until the next one (SQLite `macro_releases`)
-- **Market data**: always fresh (daily Stooq updates)
+- **Market data**: always fresh (daily Yahoo updates)
 
 ## Development
 
@@ -159,6 +159,25 @@ pytest
 ## Schedule
 
 Cron runs 3× daily at 08:00, 13:00, 18:00 UTC inside the container.
+
+## Failure handling & retries
+
+There is **no automatic retry within a single run** — a failed run exits
+non-zero and logs the error (cron appends output to `/var/log/cron.log`,
+visible via `docker compose logs`). Recovery happens at the **next scheduled
+run** (up to 5 hours later), and it is effectively a retry of the same
+content, because:
+
+- Items are marked as *seen* in the dedup database **only after a successful
+  publish**. If a run aborts in any LLM stage or the publish POST fails, the
+  selected news/macro items stay fresh and are re-presented next run.
+- The assembled payload of a failed publish is kept as an audit JSON in
+  `/app/data/posts` for manual replay if needed.
+
+Typical failure modes: a reasoning model emits unparseable/rejected JSON
+(stage aborts; a fresh draft is generated next run), or the self-review
+rejects a draft as numerically incorrect with no possible correction (by
+design — better no post than a wrong one).
 
 ## License
 
