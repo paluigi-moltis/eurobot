@@ -28,7 +28,7 @@ POSTS_DIR.mkdir(parents=True, exist_ok=True)
 # ---------------------------------------------------------------------------
 ZZBOARD_API_TOKEN: str = os.getenv("ZZBOARD_API_TOKEN", "")
 ZZBOARD_API_ENDPOINT: str = os.getenv(
-    "ZZBOARD_API_ENDPOINT", "https://roll.by.gg8.eu/api/posts"
+    "ZZBOARD_API_ENDPOINT", "https://roll.by.gg8.eu/api/new"
 )
 
 # llm-pycascade TOML config path
@@ -37,6 +37,10 @@ CASCADE_CONFIG_PATH: str = str(CONFIG_DIR / "llm-pycascade.toml")
 # Dedup / freshness windows (hours)
 NEWS_COOLDOWN_HOURS: int = int(os.getenv("NEWS_COOLDOWN_HOURS", "48"))
 THEME_COOLDOWN_HOURS: int = int(os.getenv("THEME_COOLDOWN_HOURS", "24"))
+
+# Max attempts (initial run + retries) for the LLM/publish stages. Retries
+# resume from the last stage that succeeded.
+PIPELINE_MAX_ATTEMPTS: int = int(os.getenv("PIPELINE_MAX_ATTEMPTS", "4"))
 
 # Number of news items / data items to present to LLM
 MAX_NEWS_ITEMS: int = int(os.getenv("MAX_NEWS_ITEMS", "15"))

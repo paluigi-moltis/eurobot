@@ -1,10 +1,9 @@
 # eurobot crontab — runs 3× daily (08:00, 13:00, 18:00 UTC)
-# Output is appended to /var/log/cron.log
+# Executed by supercronic: standard crontab syntax WITHOUT the user field;
+# job output is logged to stdout (visible via `docker compose logs`).
 SHELL=/bin/sh
 PATH=/usr/local/bin:/usr/bin:/bin
 
-0 8 * * *     cd /app && /usr/local/bin/uv run python -m eurobot.main >> /var/log/cron.log 2>&1
-0 13 * * *    cd /app && /usr/local/bin/uv run python -m eurobot.main >> /var/log/cron.log 2>&1
-0 18 * * *    cd /app && /usr/local/bin/uv run python -m eurobot.main >> /var/log/cron.log 2>&1
-
-# Empty line at end required by cron
+0 8 * * *     cd /app && python -m eurobot.main
+0 13 * * *    cd /app && python -m eurobot.main
+0 18 * * *    cd /app && python -m eurobot.main

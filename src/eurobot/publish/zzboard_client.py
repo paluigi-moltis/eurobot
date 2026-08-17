@@ -1,4 +1,4 @@
-"""zzboard publisher — POST payload to the API endpoint with bearer auth.
+"""zzboard publisher — POST payload to the API endpoint with X-API-Key auth.
 
 Handles authentication, error handling, and logging of HTTP responses.
 On failure the payload is saved locally for manual retry.
@@ -34,7 +34,7 @@ def publish_payload(payload: dict) -> bool:
         return False
 
     headers = {
-        "Authorization": f"Bearer {token}",
+        "X-API-Key": token,
         "Content-Type": "application/json",
     }
 

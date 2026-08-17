@@ -1,9 +1,9 @@
 """RSS news fetcher — euro-area economic and financial feeds.
 
-Collects items from official sources (ECB, Eurostat) and commercial press
-(Reuters, The Economist, Guardian, ANSA, RAI, Il Sole 24 Ore, etc.).  Items
-are tagged ``[NEWS_xxx]`` for LLM selection.  All feeds are filtered for
-euro-area economic/financial relevance.
+Collects items from an official source (ECB), international press (The
+Economist, The Guardian, DW), Italian press (ANSA, Il Sole 24 Ore) and
+think tanks (Bruegel).  Items are tagged ``[NEWS_xxx]`` for LLM selection.
+All feeds are filtered for euro-area economic/financial relevance.
 """
 
 from __future__ import annotations

@@ -15,13 +15,38 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+import math
+from datetime import date, datetime, timezone
+
+import numpy as np
 
 from eurobot import config
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_AUTHOR = "eurobot"
+
+
+def _jsonify(obj):
+    """Recursively convert numpy / non-finite values to JSON-native types.
+
+    Plotly specs built from pandas objects contain numpy arrays and scalars,
+    which ``json.dumps`` (used by requests, without ``default=str``) rejects.
+    NaN/inf floats become ``None`` (JSON ``null``).
+    """
+    if isinstance(obj, dict):
+        return {k: _jsonify(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_jsonify(v) for v in obj]
+    if isinstance(obj, np.ndarray):
+        return _jsonify(obj.tolist())
+    if isinstance(obj, np.generic):
+        return _jsonify(obj.item())
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    if isinstance(obj, float) and not math.isfinite(obj):
+        return None
+    return obj
 
 
 def assemble_payload(
@@ -63,11 +88,11 @@ def assemble_payload(
         "author": DEFAULT_AUTHOR,
         "content_markdown": content_markdown,
         "tables": [
-            {"title": t["title"], "rows": t["rows"]}
+            {"title": t["title"], "rows": _jsonify(t["rows"])}
             for t in tables
         ],
         "charts": [
-            {"title": c["title"], "spec": c["spec"]}
+            {"title": c["title"], "spec": _jsonify(c["spec"])}
             for c in charts
         ],
         "links": links,
