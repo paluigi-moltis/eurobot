@@ -18,9 +18,9 @@ LABEL org.opencontainers.image.licenses="MIT"
 # contents, never on the build clock.
 ENV SOURCE_DATE_EPOCH=946684800
 
-# Strip apt logs, state and the random machine-id so the layer is deterministic.
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*.deb \
+# Strip apt state and the random machine-id so the layer is deterministic.
+# (No apt packages needed since supercronic was dropped for APScheduler.)
+RUN rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*.deb \
     && rm -f /var/log/apt/* /var/log/dpkg.log /var/log/alternatives.log \
     && rm -f /var/cache/ldconfig/aux-cache \
     && : > /etc/machine-id \
